@@ -621,17 +621,23 @@ module top (
     // ========================================================================
     reg [3:0] mvol;
     reg [6:0] vol_cnt;
+    reg       k12_p, k13_p;
+    // 按下瞬间立即调一档(不用等 100ms), 按住则每 100ms 连续调
+    wire vol_inc_en = (kst[12] && !k12_p) || (kst[12] && vol_cnt >= 7'd99);
+    wire vol_dec_en = (kst[13] && !k13_p) || (kst[13] && vol_cnt >= 7'd99);
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            mvol    <= 4'd10;       // 默认 10/16 (留余量防削顶)
+            mvol    <= 4'd8;        // 默认 8/16 (留足余量, 防喇叭过载)
             vol_cnt <= 7'd0;
+            k12_p   <= 1'b0;
+            k13_p   <= 1'b0;
         end else if (tick_ms) begin
-            if (vol_cnt >= 7'd99) begin
-                vol_cnt <= 7'd0;
-                if (kst[12] && mvol < 4'd15) mvol <= mvol + 1'b1;
-                if (kst[13] && mvol > 4'd0)  mvol <= mvol - 1'b1;
-            end else
-                vol_cnt <= vol_cnt + 1'b1;
+            k12_p <= kst[12];
+            k13_p <= kst[13];
+            if (vol_cnt >= 7'd99) vol_cnt <= 7'd0;
+            else                  vol_cnt <= vol_cnt + 1'b1;
+            if (vol_inc_en && mvol < 4'd15) mvol <= mvol + 1'b1;
+            if (vol_dec_en && mvol > 4'd0)  mvol <= mvol - 1'b1;
         end
     end
 
@@ -915,13 +921,10 @@ module top (
     wire signed [17:0] cho_sum = $signed(mix_out) + ($signed(cho_tap) >>> 1);
     wire signed [15:0] cho_out = sat16(cho_sum);
 
-    // 自动播放时默认带混响(声音更丰满), 手动效果器优先
-    wire auto_verb = (play_mode == 3'd2 || play_mode == 3'd3);
-
+    // 自动播放默认【不】叠加混响(避免音量过大/糊), 想要空间感请按键14开效果器
     wire signed [15:0] eff_out = (fx_mode == 3'd1) ? sat16(wetA) :
                                  (fx_mode == 3'd2) ? sat16(wetB) :
-                                 (fx_mode == 3'd3) ? cho_out     :
-                                 auto_verb         ? sat16(wetB) : mix_out;
+                                 (fx_mode == 3'd3) ? cho_out     : mix_out;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
