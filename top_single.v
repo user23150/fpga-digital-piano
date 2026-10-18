@@ -750,7 +750,7 @@ module top (
 
     // 力度系数: 加低通平滑, 避免 ADC 单次噪声造成 100Hz 音量抖动(听感'啵啵')
     reg [11:0] loud;
-    wire [11:0] vol_new = 12'd1024 + vol_inc;
+    wire [11:0] vol_new = 12'd768 + {1'b0, vol_inc[11:1]};   // 上限约 70%%, 给和弦留余量
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) loud <= 12'd4095;
         else if (adc_ok) begin
@@ -826,10 +826,18 @@ module top (
         mix_sum = mix_sum + $signed(v7);
     end
 
+    // ---- 软限幅(soft-knee): 超过 knee 的部分只按 1/4 压缩, 而不是硬削平 ----
+    //      硬削平会产生大量奇次谐波 -> 听感'工厂嘶哑'; 软限幅谐波少得多
+    localparam signed [19:0] KNEE = 20'sd24000;
+    wire signed [19:0] mix_soft =
+        (mix_sum >  KNEE) ? ( KNEE + ((mix_sum - KNEE) >>> 2)) :
+        (mix_sum < -KNEE) ? (-KNEE + ((mix_sum + KNEE) >>> 2)) :
+        mix_sum;
+
     wire signed [15:0] mix_out =
-        (mix_sum > 19'sd32767)  ? 16'sh7FFF :
-        (mix_sum < -19'sd32768) ? 16'sh8000 :
-        mix_sum[15:0];
+        (mix_soft > 20'sd32767)  ? 16'sh7FFF :
+        (mix_soft < -20'sd32768) ? 16'sh8000 :
+        mix_soft[15:0];
 
     // ========================================================================
     // 9) 音频效果器: 键14 循环切换 [关] -> [延迟] -> [混响] -> [关]
