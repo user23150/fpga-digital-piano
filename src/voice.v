@@ -47,16 +47,16 @@ module voice (
                                            4'd7;       // 木琴 快
 
     // ---------------- 滑音: 当前频率向目标渐变 ----------------
-    localparam [31:0] GLIDE_STEP = 32'd300000;
+    localparam [31:0] GLIDE_STEP = 32'd900000;      // 快速到位(约0.3ms), 音头更干净
     reg [31:0] cur_fw;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) cur_fw <= 32'd0;
         else if (tick_sample) begin
             if (env_rst)
-                cur_fw <= fword;            // 换音: 音高立即到位(不要滑音, 否则旋律会飘)
+                cur_fw <= fword;                // 换音: 立即到位
             else if (cur_fw < fword - GLIDE_STEP)
-                cur_fw <= cur_fw + GLIDE_STEP;
+                cur_fw <= cur_fw + GLIDE_STEP;   // 快速滑音(约0.3ms)
             else if (cur_fw > fword + GLIDE_STEP)
                 cur_fw <= cur_fw - GLIDE_STEP;
             else
@@ -179,10 +179,10 @@ module voice (
     wire signed [15:0] w_tri    = phase[31] ? ~phase[30:15] : phase[30:15];
     wire signed [15:0] w_saw    = phase[31:16];
 
-    // 预设 -> 波形: 0钢琴=锯齿 1风琴=方波 2弦乐=三角 3木琴=正弦 (4种波形全覆盖)
-    wire signed [15:0] wave_out = (preset == 2'd1) ? w_square :
-                                  (preset == 2'd2) ? w_tri    :
-                                  (preset == 2'd3) ? w_sine   : w_saw;
+    // 预设 -> 波形: 0=正弦(默认,最空灵) 1=三角(柔和) 2=锯齿(明亮) 3=方波(粗犷)
+    wire signed [15:0] wave_out = (preset == 2'd0) ? w_sine   :
+                                  (preset == 2'd1) ? w_tri    :
+                                  (preset == 2'd2) ? w_saw    : w_square;
 
     // ---------------- 起音瞬态噪声 ----------------
     //   真实乐器起音都有短暂的'咔/气'声(钢琴锤击、吉他拨弦、长笛气声)
@@ -225,7 +225,7 @@ module voice (
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n)            sample <= 16'd0;
-        else if (tick_sample)  sample <= prod[27:12];
+        else if (tick_sample)  sample <= $signed(prod[27:12]) >>> 1;   // 降半, 给混音留余量(防削顶)
     end
 
 endmodule

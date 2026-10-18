@@ -627,7 +627,7 @@ module top (
     wire vol_dec_en = (kst[13] && !k13_p) || (kst[13] && vol_cnt >= 7'd99);
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            mvol    <= 4'd8;        // 默认 8/16 (留足余量, 防喇叭过载)
+            mvol    <= 4'd13;       // 默认 13/16 (单声部已降半, 这里补回来)
             vol_cnt <= 7'd0;
             k12_p   <= 1'b0;
             k13_p   <= 1'b0;
@@ -748,14 +748,14 @@ module top (
 
     wire [11:0] vol_inc = vol_curve[adc_clip[15:8]];
 
-    // 力度系数: 加低通平滑, 避免 ADC 单次噪声造成 100Hz 音量抖动(听感'啵啵')
+    // 力度系数: ADC 读数 1/8 步进平滑(防 100Hz 音量抖动)
     reg [11:0] loud;
-    wire [11:0] vol_new = 12'd768 + {1'b0, vol_inc[11:1]};   // 上限约 70%%, 给和弦留余量
+    wire [11:0] vol_new = 12'd1024 + {1'b0, vol_inc[11:1]};
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) loud <= 12'd4095;
         else if (adc_ok) begin
             if (vol_new > loud)
-                loud <= loud + ((vol_new - loud) >> 3);   // 1/8 步进逼近
+                loud <= loud + ((vol_new - loud) >> 3);
             else
                 loud <= loud - ((loud - vol_new) >> 3);
         end
