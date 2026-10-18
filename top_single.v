@@ -768,8 +768,14 @@ module top (
 
     voice u_v0 (.clk(clk), .rst_n(rst_n), .tick_sample(tick_sample),
                 .fword(fword0), .gate(gate0), .env_rst(env_rst0), .preset(preset), .loud(loud), .vib_lfo(vib_lfo), .vib_on(vib_on), .sample(v0));
+    // ---- 伴奏: 自动播放时声部1 兼作低八度低音(音量减半), 让曲子更厚实 ----
+    wire        bass_on   = (play_mode == 3'd2 || play_mode == 3'd3);
+    wire [31:0] fw1_use   = bass_on ? (fword_play >> 1) : fw1;
+    wire        gate1_use = bass_on ? gate0 : gate_vec[1];
+    wire [11:0] loud1_use = bass_on ? {1'b0, loud[11:1]} : loud;
+
     voice u_v1 (.clk(clk), .rst_n(rst_n), .tick_sample(tick_sample),
-                .fword(fw1), .gate(gate_vec[1]), .env_rst(1'b0), .preset(preset), .loud(loud), .vib_lfo(vib_lfo), .vib_on(vib_on), .sample(v1));
+                .fword(fw1_use), .gate(gate1_use), .env_rst(bass_on ? env_rst0 : 1'b0), .preset(preset), .loud(loud1_use), .vib_lfo(vib_lfo), .vib_on(vib_on), .sample(v1));
     voice u_v2 (.clk(clk), .rst_n(rst_n), .tick_sample(tick_sample),
                 .fword(fw2), .gate(gate_vec[2]), .env_rst(1'b0), .preset(preset), .loud(loud), .vib_lfo(vib_lfo), .vib_on(vib_on), .sample(v2));
     voice u_v3 (.clk(clk), .rst_n(rst_n), .tick_sample(tick_sample),
