@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """生成 src/voice.v —— 单个声部 (正弦表 + 颤音 + 滑音 + 4种乐器预设)"""
 import math
+import os
 
 N = 256
 AMP = 32000
@@ -211,6 +212,6 @@ a("    end")
 a("")
 a("endmodule")
 
-with open(r"D:\download\gaoyun\day3\src\voice.v", "w", encoding="utf-8", newline="\n") as fp:
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "src", "voice.v"), "w", encoding="utf-8", newline="\n") as fp:
     fp.write("\n".join(o) + "\n")
 print("已生成 src/voice.v (4 种乐器预设 + 指数 ADSR)")

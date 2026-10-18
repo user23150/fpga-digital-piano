@@ -1,3 +1,4 @@
+import os
 """生成 48kHz 采样率下的 note_lut.v（十二平均律，A4=440Hz）"""
 names = ['C4','C#4','D4','D#4','E4','F4','F#4','G4','G#4','A4','A#4','B4','C5','C#5','D5','D#5']
 FS = 48000.0
@@ -29,7 +30,7 @@ out.append("    end")
 out.append("endmodule")
 out.append("")
 
-with open(r"D:\download\gaoyun\day3\src\note_lut.v", "w", encoding="utf-8", newline="\n") as fp:
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "src", "note_lut.v"), "w", encoding="utf-8", newline="\n") as fp:
     fp.write("\n".join(out))
 
 print("\n已写入 src/note_lut.v")

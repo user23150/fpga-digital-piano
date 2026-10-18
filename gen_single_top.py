@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """生成单文件 FPGA 电子琴 top.v —— 8 声部复音版"""
 import math
+import os
 
 # ============ 音名频字 (12 平均律, A4=440Hz, fs=48kHz) ============
 NAMES = ['C4','C#4','D4','D#4','E4','F4','F#4','G4','G#4','A4','A#4','B4','C5','C#5','D5','D#5']
@@ -760,7 +761,7 @@ a("    assign led[3] = led_test | led_zone[3];   // 西/哆(高)")
 a("")
 a("endmodule")
 
-with open(r"D:\download\gaoyun\day3\top_single.v", "w", encoding="utf-8", newline="\n") as fp:
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "top_single.v"), "w", encoding="utf-8", newline="\n") as fp:
     fp.write("\n".join(o) + "\n")
 
 print("已生成 top_single.v (8 声部版)")
