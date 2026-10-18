@@ -109,18 +109,31 @@ module top (
     assign key_row[2] = row_oe[2] ? 1'b0 : 1'bz;
     assign key_row[3] = row_oe[3] ? 1'b0 : 1'bz;
 
-    // 按键位图: bit0~15 对应键 0~15 (1=按下)
-    //   扫到哪一行就立即更新那 4 位(不再等整轮锁存) -> 检测延迟 <= 1ms
-    reg [15:0] kst;
+    // 按键位图: 逐行采样 + 3 轮消抖
+    //   raw: 每 250us 更新对应 4 位;  kst: 连续 3 轮(3ms)相同才更新
+    //   -> 消除机械抖动造成的 gate 抖动(长按断续 / 啵啵声)
+    reg [15:0] kst_raw;
     always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) kst <= 16'd0;
+        if (!rst_n) kst_raw <= 16'd0;
         else if (tick_scan) begin
             case (scan_row)
-                2'd0: kst[3:0]   <= ~key_col;
-                2'd1: kst[7:4]   <= ~key_col;
-                2'd2: kst[11:8]  <= ~key_col;
-                2'd3: kst[15:12] <= ~key_col;
+                2'd0: kst_raw[3:0]   <= ~key_col;
+                2'd1: kst_raw[7:4]   <= ~key_col;
+                2'd2: kst_raw[11:8]  <= ~key_col;
+                2'd3: kst_raw[15:12] <= ~key_col;
             endcase
+        end
+    end
+
+    reg [15:0] kst, kst_p1, kst_p2;
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            kst <= 16'd0; kst_p1 <= 16'd0; kst_p2 <= 16'd0;
+        end else if (tick_scan && scan_row == 2'd0) begin   // 每轮末尾比较
+            kst_p1 <= kst_raw;
+            kst_p2 <= kst_p1;
+            if (kst_raw == kst_p1 && kst_p1 == kst_p2)
+                kst <= kst_raw;                              // 3 轮稳定 -> 生效
         end
     end
 
@@ -729,10 +742,17 @@ module top (
 
     wire [11:0] vol_inc = vol_curve[adc_clip[15:8]];
 
-    reg [11:0] loud;      // 力度系数 1024(25%) ~ 4095(100%)
+    // 力度系数: 加低通平滑, 避免 ADC 单次噪声造成 100Hz 音量抖动(听感'啵啵')
+    reg [11:0] loud;
+    wire [11:0] vol_new = 12'd1024 + vol_inc;
     always @(posedge clk or negedge rst_n) begin
-        if (!rst_n)          loud <= 12'd4095;
-        else if (adc_ok)     loud <= 12'd1024 + vol_inc;
+        if (!rst_n) loud <= 12'd4095;
+        else if (adc_ok) begin
+            if (vol_new > loud)
+                loud <= loud + ((vol_new - loud) >> 3);   // 1/8 步进逼近
+            else
+                loud <= loud - ((loud - vol_new) >> 3);
+        end
     end
 
     // ========================================================================
