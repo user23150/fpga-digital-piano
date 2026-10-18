@@ -140,7 +140,7 @@ module top (
     // ---- 乐器预设: 键8=钢琴 键9=风琴 键10=弦乐 键11=木琴 ----
     reg [1:0] preset;
     always @(posedge clk or negedge rst_n) begin
-        if (!rst_n)       preset <= 2'd0;
+        if (!rst_n)       preset <= 2'd3;   // 默认正弦(最柔和, 无''滋滋''谐波)
         else if (kst[8])  preset <= 2'd0;   // 钢琴(锯齿)
         else if (kst[9])  preset <= 2'd1;   // 风琴(方波)
         else if (kst[10]) preset <= 2'd2;   // 弦乐(锯齿)

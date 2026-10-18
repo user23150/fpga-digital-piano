@@ -200,7 +200,7 @@ module voice (
             lfsr   <= {lfsr[14:0], lfsr[15] ^ lfsr[13] ^ lfsr[12] ^ lfsr[10]};
             gate_p <= gate;
             if (gate && !gate_p)
-                trk_env <= 8'd40;                      // 起音瞬间(约主音15%, 太大会炸)
+                trk_env <= 8'd0;                       // 关闭起音白噪声(听感滋滋/沙沙)
             else if (trk_env > 8'd2)
                 trk_env <= trk_env - (trk_env >> 3) - 1'b1;   // 指数衰减
             else
