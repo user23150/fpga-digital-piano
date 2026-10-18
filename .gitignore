@@ -1,0 +1,43 @@
+# ---- 编译产物 (体积大, 可重新生成) ----
+impl/
+*.fs
+*.bin
+*.rpt
+*.rpt.txt
+*.log
+
+# ---- 备份目录 (本地工作副本) ----
+backup_working/
+backup_oled_attempt/
+src_backup_old/
+
+# ---- 个人资料 / 课程素材 / 截图 (与代码无关, 含个人信息) ----
+电子琴/
+*.pptx
+*.ppt
+*.jpg
+*.jpeg
+*.png
+
+# ---- 含个人信息的说明文档 (自费购买记录 / 订单价格等) ----
+现有基础.md
+补充.md
+
+# ---- IDE 与工具生成的本地配置 ----
+*.gprj.user
+*.dsh
+
+# ---- 一次性调试脚本 (过程产物, 非项目代码) ----
+fix_*.py
+add_*.py
+opt_*.py
+integrate_*.py
+revert_*.py
+led_*.py
+extend_selftest.py
+extract_pptx.py
+
+# ---- 系统文件 ----
+Thumbs.db
+desktop.ini
+.DS_Store
