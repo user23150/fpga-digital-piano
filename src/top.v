@@ -766,8 +766,6 @@ module top (
     // 曲目/音阶换音 -> 复位声部0包络 (关键: 否则音符会粘连成一片)
     wire env_rst0 = note_sw_r && (play_mode == 3'd2 || play_mode == 3'd3 || play_mode == 3'd4);
 
-    voice u_v0 (.clk(clk), .rst_n(rst_n), .tick_sample(tick_sample),
-                .fword(fword0), .gate(gate0), .env_rst(env_rst0), .preset(preset), .loud(loud0_use), .vib_lfo(vib_lfo), .vib_on(vib_on), .sample(v0));
     // ---- 伴奏: 自动播放时声部1 兼作低八度低音(音量减半), 让曲子更厚实 ----
     wire        bass_on   = (play_mode == 3'd2 || play_mode == 3'd3);
     wire [31:0] fw1_use   = bass_on ? (fword_play >> 1) : fw1;
@@ -776,6 +774,8 @@ module top (
     //   旋律 0.5x + 低音 0.125x -> 混音约 20000, 混响后约 30000, 安全
     wire [11:0] loud0_use = bass_on ? {1'b0, loud[11:1]} : loud;        // 旋律 0.5x
     wire [11:0] loud1_use = bass_on ? {3'b000, loud[11:3]} : loud;      // 低音 0.125x
+    voice u_v0 (.clk(clk), .rst_n(rst_n), .tick_sample(tick_sample),
+                .fword(fword0), .gate(gate0), .env_rst(env_rst0), .preset(preset), .loud(loud0_use), .vib_lfo(vib_lfo), .vib_on(vib_on), .sample(v0));
 
     voice u_v1 (.clk(clk), .rst_n(rst_n), .tick_sample(tick_sample),
                 .fword(fw1_use), .gate(gate1_use), .env_rst(bass_on ? env_rst0 : 1'b0), .preset(preset), .loud(loud1_use), .vib_lfo(vib_lfo), .vib_on(vib_on), .sample(v1));
