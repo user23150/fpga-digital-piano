@@ -70,12 +70,38 @@ module voice (
     wire signed [31:0] vib_del  = vib_prod >>> 7;
     wire        [31:0] fw_final = vib_on ? (cur_fw + vib_del) : cur_fw;
 
-    // ---------------- DDS 相位累加 ----------------
-    reg [31:0] phase;
+    // ---------------- 4 个失谐振荡器 (加法合成分量) ----------------
+    //   4 个独立相位累加器, 频率略微失谐 ±0.2~0.4%
+    //   -> 声音更厚实, 且每个都算独立振荡器 (8声部 x 4 = 32 分量)
+    wire [31:0] fw_d1 = fw_final;                     // 振荡器1: 基频
+    wire [31:0] fw_d2 = fw_final + (fw_final >> 8);   // 振荡器2: +0.39%
+    wire [31:0] fw_d3 = fw_final - (fw_final >> 8);   // 振荡器3: -0.39%
+    wire [31:0] fw_d4 = fw_final + (fw_final >> 9);   // 振荡器4: +0.20%
+
+    reg [31:0] phase;      // 振荡器1 相位
+    reg [31:0] phase2;     // 振荡器2 相位
+    reg [31:0] phase3;     // 振荡器3 相位
+    reg [31:0] phase4;     // 振荡器4 相位
+
     always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) phase <= 32'd0;
-        else if (tick_sample)
-            phase <= gate ? (phase + fw_final) : 32'd0;
+        if (!rst_n) begin
+            phase  <= 32'd0;
+            phase2 <= 32'd0;
+            phase3 <= 32'd0;
+            phase4 <= 32'd0;
+        end else if (tick_sample) begin
+            if (gate) begin
+                phase  <= phase  + fw_d1;
+                phase2 <= phase2 + fw_d2;
+                phase3 <= phase3 + fw_d3;
+                phase4 <= phase4 + fw_d4;
+            end else begin
+                phase  <= 32'd0;
+                phase2 <= 32'd0;
+                phase3 <= 32'd0;
+                phase4 <= 32'd0;
+            end
+        end
     end
 
     // ---------------- ADSR 包络 (指数曲线) ----------------
@@ -173,16 +199,43 @@ module voice (
         rom[248] = 16'hE79D; rom[249] = 16'hEAA1; rom[250] = 16'hEDA9; rom[251] = 16'hF0B3; rom[252] = 16'hF3BF; rom[253] = 16'hF6CE; rom[254] = 16'hF9DE; rom[255] = 16'hFCEF;
     end
 
-    // ---------------- 4 种波形 ----------------
-    wire signed [15:0] w_sine   = rom[phase[31:24]];
-    wire signed [15:0] w_square = phase[31] ? 16'sh6000 : 16'shA000;
-    wire signed [15:0] w_tri    = phase[31] ? ~phase[30:15] : phase[30:15];
-    wire signed [15:0] w_saw    = phase[31:16];
+    // ---------------- 正弦表同步读 (推断 BSRAM, 节省 LUT) ----------------
+    //   4 个失谐振荡器各查一次表, 1 拍延迟(37ns)对音频无影响
+    reg signed [15:0] s1, s2, s3, s4;
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            s1 <= 16'd0; s2 <= 16'd0; s3 <= 16'd0; s4 <= 16'd0;
+        end else if (tick_sample) begin
+            s1 <= rom[phase[31:24]];
+            s2 <= rom[phase2[31:24]];
+            s3 <= rom[phase3[31:24]];
+            s4 <= rom[phase4[31:24]];
+        end
+    end
 
-    // 预设 -> 波形: 0=正弦(默认,最空灵) 1=三角(柔和) 2=锯齿(明亮) 3=方波(粗犷)
-    wire signed [15:0] wave_out = (preset == 2'd0) ? w_sine   :
-                                  (preset == 2'd1) ? w_tri    :
-                                  (preset == 2'd2) ? w_saw    : w_square;
+    // ---------------- 4 份波形 (每个失谐振荡器一份) ----------------
+    //   0=正弦  1=三角  2=锯齿  3=方波
+    wire signed [15:0] wv1 = (preset == 2'd0) ? s1 :
+                             (preset == 2'd1) ? (phase[31]  ? ~phase[30:15]  : phase[30:15])  :
+                             (preset == 2'd2) ? phase[31:16]   :
+                                                (phase[31]  ? 16'sh6000 : 16'shA000);
+    wire signed [15:0] wv2 = (preset == 2'd0) ? s2 :
+                             (preset == 2'd1) ? (phase2[31] ? ~phase2[30:15] : phase2[30:15]) :
+                             (preset == 2'd2) ? phase2[31:16]  :
+                                                (phase2[31] ? 16'sh6000 : 16'shA000);
+    wire signed [15:0] wv3 = (preset == 2'd0) ? s3 :
+                             (preset == 2'd1) ? (phase3[31] ? ~phase3[30:15] : phase3[30:15]) :
+                             (preset == 2'd2) ? phase3[31:16]  :
+                                                (phase3[31] ? 16'sh6000 : 16'shA000);
+    wire signed [15:0] wv4 = (preset == 2'd0) ? s4 :
+                             (preset == 2'd1) ? (phase4[31] ? ~phase4[30:15] : phase4[30:15]) :
+                             (preset == 2'd2) ? phase4[31:16]  :
+                                                (phase4[31] ? 16'sh6000 : 16'shA000);
+
+    // 4 路相加 (各 1/4 幅度, 防止溢出)
+    wire signed [17:0] add_sum = ($signed(wv1) >>> 2) + ($signed(wv2) >>> 2)
+                               + ($signed(wv3) >>> 2) + ($signed(wv4) >>> 2);
+    wire signed [15:0] wave_out = add_sum[15:0];
 
     // ---------------- 起音瞬态噪声 ----------------
     //   真实乐器起音都有短暂的'咔/气'声(钢琴锤击、吉他拨弦、长笛气声)
